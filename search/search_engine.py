@@ -535,11 +535,19 @@ class ContextBuilder:
     
     def _get_korean_diagnosis(self, primary_diagnosis: str) -> str:
         """영어 진단명을 한국어로 변환"""
-        # SearchConfig에서 한국어 이름 가져오기
-        from search.search_engine import SearchConfig
-        config = SearchConfig()
+        # 직접 DISEASE_INFO 사용
+        DISEASE_INFO = {
+            "Effusion": {"korean": "흉수"},
+            "Infiltrate": {"korean": "침윤/경화"},
+            "Atelectasis": {"korean": "무기폐"},
+            "Pneumonia": {"korean": "폐렴"},
+            "Mass": {"korean": "종괴"},
+            "Pneumothorax": {"korean": "기흉"},
+            "Cardiomegaly": {"korean": "심장비대"},
+            "Nodule": {"korean": "결절"}
+        }
         
-        disease_info = config.DISEASE_INFO.get(primary_diagnosis, {})
+        disease_info = DISEASE_INFO.get(primary_diagnosis, {})
         korean_name = disease_info.get('korean', primary_diagnosis)
         
         return f"{korean_name} ({primary_diagnosis})"

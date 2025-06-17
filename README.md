@@ -164,11 +164,8 @@ medical-multimodal-rag/
 ├── preprocessing/                 # 텍스트/이미지 전처리
 ├── database/                      # RAG DB 관리 (Pinecone)
 ├── search/                        # ✅ 멀티모달 검색 (Phase IV 완료)
-│   ├── search_engine.py          # 🎯 통합 검색 엔진
-│   ├── result_ranker.py           # 🔄 고급 랭킹 시스템
-│   ├── hybrid_searcher.py         # 🔍 다중 검색 전략
-│   ├── query_processor.py         # 📝 쿼리 확장
-│   ├── __init__.py               # 🔧 모듈 인터페이스
+│   ├── search_engine.py          # 🎯 ALL-IN-ONE 통합 시스템
+│   ├── __init__.py               # 🔧 외부 인터페이스
 │   └── tests/
 │       └── test_search.py        # ✅ 100% 테스트 통과
 ├── context/                       # 🚧 컨텍스트 생성 (Phase V 진행중)

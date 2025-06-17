@@ -143,8 +143,6 @@ python -m pytest search/tests/test_search.py -v
 # 성능 벤치마크
 python search/search_engine.py eval
 
-# 검색 정확도 상세 분석
-python evaluation/search_accuracy_analysis.py
 ```
 
 ### 수동 테스트

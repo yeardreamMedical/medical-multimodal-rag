@@ -166,8 +166,13 @@ medical-multimodal-rag/
 │   ├── __init__.py               # 🔧 외부 인터페이스
 │   └── tests/
 │       └── test_search.py        # ✅ 100% 테스트 통과
-├── context/                       # 🚧 컨텍스트 생성 (Phase V 진행중)
-├── generation/                    # ⏳ LLM 문제 생성 (Phase VI 대기)
+├── generation/              # ✅ Phase V, VI: 컨텍스트 생성 및 LLM 연동
+│   ├── run_question_generation.py  # 👈 [핵심] 문제 생성 실행 스크립트
+│   ├── context_builder.py
+│   ├── llm_interface.py
+│   ├── prompt_engineer.py
+│   └── tests/
+│       └── test_prompt_pipeline.py
 ├── evaluation/                    # 성능 평가
 └── api/                          # REST API (배포용)
 ```
@@ -179,11 +184,10 @@ medical-multimodal-rag/
 - **구현 예정**:
   - `context/context_builder.py`: 멀티모달 컨텍스트 융합
   - `context/prompt_engineer.py`: 의료 문제 생성 프롬프트 최적화
-  - `context/medical_knowledge_integration.py`: 의학 지식 통합
 
 ### Phase VI 준비: LLM 통합
 - **GPT-4o 연동**: 검색 컨텍스트 → 고품질 의료 문제 생성
-- **KorMedMCQA 평가**: 65% 정확도 목표
+- **KorMedMCQA 평가**: 80% 정확도 목표
 - **MVP 배포**: 실용적인 의료 교육 도구
 
 ## 🔍 성능 모니터링

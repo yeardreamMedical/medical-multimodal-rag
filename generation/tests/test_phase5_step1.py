@@ -2,8 +2,8 @@ import sys
 # search_engine.py가 있는 경로를 시스템 경로에 추가
 sys.path.append('./search') 
 
-from search_engine import SearchEngine
-from context.context_builder import LLMContextBuilder
+from search.search_engine import SearchEngine
+from generation.context_builder import LLMContextBuilder
 
 def main():
     print("🚀 Phase 5: Step 1.5 - ContextBuilder 연동 및 이미지 경로 확인 테스트")

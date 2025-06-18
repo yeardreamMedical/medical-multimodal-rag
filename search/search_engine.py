@@ -31,8 +31,8 @@ class SearchConfig:
     TEXT_EMBEDDING_MODEL = "text-embedding-3-small"
     
     # 인덱스 설정
-    TEXT_INDEX_NAME = "my-index"
-    IMAGE_INDEX_NAME = "cxr-image-meta-512"
+    TEXT_INDEX_NAME = "textbook-rag"
+    IMAGE_INDEX_NAME = "cxr-image-meta-v2"
     
     # 질병 정보
     DISEASE_INFO = {
@@ -491,6 +491,7 @@ class ContextBuilder:
             "all_diseases": predicted_diseases,
             "text_content": text_content,
             "image_info": image_info,
+            "images": image_results, 
             "confidence": confidence_level,
             "text_count": len(text_results),
             "image_count": len(image_results),

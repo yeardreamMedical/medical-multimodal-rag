@@ -1,3 +1,4 @@
+# !pip install rich
 import sys
 import json
 import os
@@ -11,9 +12,9 @@ sys.path.insert(0, PROJECT_ROOT)
 
 # 모든 모듈 임포트
 from search.search_engine import SearchEngine
-from context.context_builder import LLMContextBuilder
-from context.prompt_engineer import PromptEngineer
-from context.llm_interface import GeminiInterface
+from generation.context_builder import LLMContextBuilder
+from generation.prompt_engineer import PromptEngineer
+from generation.llm_interface import GeminiInterface
 
 def main(query: str = "Pneumonia"):
     console = Console()

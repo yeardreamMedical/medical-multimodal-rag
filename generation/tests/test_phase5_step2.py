@@ -1,9 +1,9 @@
 import sys
 sys.path.append('./search')
 
-from search_engine import SearchEngine
-from context.context_builder import LLMContextBuilder
-from context.prompt_engineer import PromptEngineer
+from search.search_engine import SearchEngine
+from generation.context_builder import LLMContextBuilder
+from generation.prompt_engineer import PromptEngineer
 
 def main():
     print("🚀 Phase 5: Step 2 - 전체 파이프라인 통합 테스트")

@@ -148,7 +148,6 @@ try:
         print("💡 .env 파일에서 API 키를 설정해주세요.")
     else:
         print("✅ Medical Multimodal Search Engine 로딩 완료")
-        print("🎯 Phase IV 완료: 85% 정확도, 100% 테스트 통과")
         
 except Exception:
     # 조용히 실패 (import 에러 방지)

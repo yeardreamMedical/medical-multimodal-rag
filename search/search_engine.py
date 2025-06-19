@@ -143,34 +143,98 @@ class QueryProcessor:
     def __init__(self, config: SearchConfig):
         self.config = config
         self.templates = config.QUERY_EXPANSION_TEMPLATES
+        # LLM 클라이언트 추가
+        try:
+            import google.generativeai as genai
+            api_key = os.getenv("GEMINI_API_KEY")
+            if api_key:
+                genai.configure(api_key=api_key)
+                self.llm_client = genai.GenerativeModel('gemini-1.5-pro')
+                print("✅ 쿼리 확장용 LLM 클라이언트 초기화 완료")
+            else:
+                self.llm_client = None
+                print("⚠️ GEMINI_API_KEY 없음: 기본 템플릿 방식 사용")
+        except ImportError:
+            self.llm_client = None
+            print("⚠️ Gemini 패키지 없음: 기본 템플릿 방식 사용")
     
     def expand_query(self, query: str) -> str:
-        """쿼리를 의료 문맥으로 확장하여 임베딩 호환성 향상"""
+        """LLM 기반 동적 쿼리 확장 + 기존 템플릿 fallback"""
         query_lower = query.lower().strip()
         
+        # 1. 기존 템플릿 방식 시도 (빠른 처리)
+        template_expanded = self._try_template_expansion(query, query_lower)
+        if template_expanded != query:
+            print(f"    템플릿 확장: '{query}' → '{template_expanded[:80]}...'")
+            return template_expanded
+        
+        # 2. LLM 동적 확장 시도
+        if self.llm_client:
+            llm_expanded = self._expand_with_llm(query)
+            if llm_expanded and llm_expanded != query:
+                print(f"    LLM 동적 확장: '{query}' → '{llm_expanded[:80]}...'")
+                return llm_expanded
+        
+        # 3. 일반 의료 키워드 추가 (최종 fallback)
+        fallback_expanded = self._add_general_medical_keywords(query)
+        print(f"    일반 의료 확장: '{query}' → '{fallback_expanded}'")
+        return fallback_expanded
+    
+    def _try_template_expansion(self, query: str, query_lower: str) -> str:
+        """기존 템플릿 방식 확장 시도"""
         # 직접 매칭 확인
         for term, expansion in self.templates.items():
             if term in query_lower:
-                expanded = f"{query} {expansion}"
-                print(f"    쿼리 확장: '{query}' → '{expanded[:80]}...'")
-                return expanded
+                return f"{query} {expansion}"
         
         # 부분 매칭 확인
         for term, expansion in self.templates.items():
             if any(word in query_lower for word in term.split()):
-                expanded = f"{query} {expansion}"
-                print(f"    부분 매칭 확장: '{query}' → '{expanded[:80]}...'")
-                return expanded
+                return f"{query} {expansion}"
         
-        # 일반 의료 문맥 추가
-        medical_keywords = ['diagnosis', '진단', 'chest', '흉부', 'lung', '폐', 'disease', '질환']
-        if any(keyword in query_lower for keyword in medical_keywords):
-            expanded = f"{query} chest xray diagnosis medical imaging findings disease"
-            print(f"    일반 의료 확장: '{query}' → '{expanded}'")
+        return query  # 확장 실패시 원본 반환
+    
+    def _expand_with_llm(self, query: str) -> str:
+        """LLM을 사용한 동적 쿼리 확장"""
+        try:
+            prompt = f"""당신은 의료 정보 검색 전문가입니다. 다음 쿼리를 의료 문헌 검색에 최적화된 형태로 확장하세요.
+
+원본 쿼리: "{query}"
+
+지침:
+1. 의료 맥락에서 관련된 핵심 키워드들을 추가
+2. 동의어, 관련 증상, 진단 방법, 치료법 등 포함
+3. 너무 길지 않게 (원본 + 5-8개 핵심 키워드)
+4. 한국어와 영어를 적절히 조합
+
+확장된 쿼리만 출력하세요 (설명 불필요):"""
+
+            response = self.llm_client.generate_content(prompt)
+            expanded = response.text.strip()
+            
+            # 응답 검증 (너무 길거나 이상한 경우 제외)
+            if len(expanded) > len(query) * 3 or len(expanded) > 200:
+                print("    ⚠️ LLM 확장 결과가 너무 김, 기본 방식 사용")
+                return query
+            
             return expanded
+            
+        except Exception as e:
+            print(f"    ⚠️ LLM 쿼리 확장 실패: {e}")
+            return query
+    
+    def _add_general_medical_keywords(self, query: str) -> str:
+        """일반 의료 키워드 추가 (최종 fallback)"""
+        # 쿼리에서 의료 맥락 감지
+        medical_indicators = [
+            '환자', '진단', '치료', '증상', '질환', '병원', '의사',
+            'patient', 'diagnosis', 'treatment', 'symptom', 'disease'
+        ]
         
-        print(f"    쿼리 확장 불가: '{query}' (원본 사용)")
-        return query
+        if any(indicator in query.lower() for indicator in medical_indicators):
+            return f"{query} 진단 치료 증상 환자 의료 clinical diagnosis treatment medical"
+        else:
+            return f"{query} 의료 진단 medical diagnosis clinical"
 
 
 class DiseaseExtractor:
@@ -291,7 +355,7 @@ class DiseaseExtractor:
         return direct_match_found
     
     def _filter_and_sort_diseases(self, disease_scores: Dict[str, float], direct_match_found: bool) -> List[str]:
-        """질병 점수 정렬 및 필터링"""
+        """질병 점수 정렬 및 필터링 - 텍스트 전용 플래그 추가"""
         sorted_diseases = sorted(disease_scores.items(), key=lambda x: x[1], reverse=True)
         
         # 임계값 적용
@@ -306,11 +370,17 @@ class DiseaseExtractor:
             bonus_mark = "🚀" if direct_match_found and score > 50 else ""
             print(f"      {i+1}. {disease} ({korean}): {score:.3f}점 {status} {bonus_mark}")
         
-        # fallback 처리
+        # **핵심 수정**: 모든 질병이 매칭 실패시 텍스트 전용 표시
         if not predicted_diseases:
-            predicted_diseases = sorted(self.config.DISEASE_INFO.keys(), 
-                                      key=lambda x: self.config.DISEASE_INFO[x]['count'], reverse=True)
-            print("   ⚠️ fallback 적용: 데이터 보유량 순")
+            max_score = sorted_diseases[0][1] if sorted_diseases else 0
+            if max_score < 0.1:  # 매우 낮은 점수
+                print("   📝 질병 매칭 실패 → 텍스트 전용 모드 설정")
+                return ["TEXT_ONLY"]  # 특별한 플래그 반환
+            else:
+                # 기존 fallback 로직
+                predicted_diseases = sorted(self.config.DISEASE_INFO.keys(), 
+                                        key=lambda x: self.config.DISEASE_INFO[x]['count'], reverse=True)
+                print("   ⚠️ fallback 적용: 데이터 보유량 순")
         
         return predicted_diseases
     
@@ -468,33 +538,41 @@ class ContextBuilder:
         image_results: List[Dict], 
         predicted_diseases: List[str]
     ) -> Dict[str, Any]:
-        """통합 컨텍스트 생성"""
+        """통합 컨텍스트 생성 - TEXT_ONLY 플래그 처리 추가"""
         
         # 텍스트 내용 통합 (길이 제한)
         text_content = self._combine_text_results(text_results)
         
-        # 이미지 정보 정리
-        image_info = self._process_image_results(image_results)
+        # **핵심 수정**: TEXT_ONLY 플래그 확인
+        is_text_only = len(predicted_diseases) == 1 and predicted_diseases[0] == "TEXT_ONLY"
         
-        # 주요 질병 진단 (첫 번째가 주 진단)
-        primary_diagnosis = predicted_diseases[0] if predicted_diseases else "Unknown"
-        korean_diagnosis = self._get_korean_diagnosis(primary_diagnosis)
-        
-        # 신뢰도 계산
-        confidence_level = self._calculate_confidence_level(text_results, image_results, predicted_diseases)
+        if is_text_only:
+            # 텍스트 전용 모드
+            primary_diagnosis = "Unknown"
+            korean_diagnosis = "텍스트 전용 (흉부 관련성 낮음)"
+            image_info = "이미지 검색 생략 (흉부 무관 주제)"
+            confidence_level = "medium"  # 텍스트 기반이므로 중간 신뢰도
+            print(f"   📝 텍스트 전용 컨텍스트 생성: 흉부 무관 주제로 판단")
+        else:
+            # 기존 로직
+            image_info = self._process_image_results(image_results)
+            primary_diagnosis = predicted_diseases[0] if predicted_diseases else "Unknown"
+            korean_diagnosis = self._get_korean_diagnosis(primary_diagnosis)
+            confidence_level = self._calculate_confidence_level(text_results, image_results, predicted_diseases)
         
         context = {
             "query": query,
-            "diagnosis": primary_diagnosis,  # 테스트에서 기대하는 키
+            "diagnosis": primary_diagnosis,
             "primary_diagnosis": primary_diagnosis,
             "korean_diagnosis": korean_diagnosis,
             "all_diseases": predicted_diseases,
             "text_content": text_content,
             "image_info": image_info,
-            "images": image_results, 
+            "images": [] if is_text_only else image_results,  # 텍스트 전용시 빈 리스트
             "confidence": confidence_level,
             "text_count": len(text_results),
-            "image_count": len(image_results),
+            "image_count": 0 if is_text_only else len(image_results),
+            "is_text_only_mode": is_text_only,  # 새로운 플래그 추가
             "created_at": datetime.now().isoformat()
         }
         

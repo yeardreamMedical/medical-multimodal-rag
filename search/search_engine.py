@@ -195,26 +195,48 @@ class QueryProcessor:
         return query  # 확장 실패시 원본 반환
     
     def _expand_with_llm(self, query: str) -> str:
-        """LLM을 사용한 동적 쿼리 확장"""
+        """LLM을 사용한 동적 쿼리 확장 - 길이 제한 강화"""
         try:
             prompt = f"""당신은 의료 정보 검색 전문가입니다. 다음 쿼리를 의료 문헌 검색에 최적화된 형태로 확장하세요.
 
-원본 쿼리: "{query}"
+    원본 쿼리: "{query}"
 
-지침:
-1. 의료 맥락에서 관련된 핵심 키워드들을 추가
-2. 동의어, 관련 증상, 진단 방법, 치료법 등 포함
-3. 너무 길지 않게 (원본 + 5-8개 핵심 키워드)
-4. 한국어와 영어를 적절히 조합
+    지침:
+    1. 원본 쿼리 + 핵심 키워드 3-4개만 추가
+    2. 총 길이는 원본의 2배를 넘지 말 것
+    3. 동의어, 관련 증상, 진단 방법 중심
+    4. 한국어와 영어를 적절히 조합
+    5. 간결하고 검색에 유용한 키워드만 선택
 
-확장된 쿼리만 출력하세요 (설명 불필요):"""
+    예시:
+    - "열상" → "열상 상처 봉합 외상 laceration wound suture"
+    - "폐렴" → "폐렴 pneumonia 발열 기침 감염 respiratory"
+
+    확장된 쿼리만 출력하세요 (설명 불필요):"""
 
             response = self.llm_client.generate_content(prompt)
             expanded = response.text.strip()
             
-            # 응답 검증 (너무 길거나 이상한 경우 제외)
-            if len(expanded) > len(query) * 3 or len(expanded) > 200:
-                print("    ⚠️ LLM 확장 결과가 너무 김, 기본 방식 사용")
+            # 유연한 길이 검증 (짧은 쿼리 고려)
+            if len(query) <= 5:  # 매우 짧은 쿼리 (예: "열상", "폐렴")
+                max_length = 80
+            elif len(query) <= 15:  # 중간 길이 쿼리 (예: "열상 환자 치료")
+                max_length = 120
+            else:  # 긴 쿼리
+                max_length = len(query) * 2
+            
+            if len(expanded) > max_length:
+                print(f"    ⚠️ LLM 확장 결과가 너무 김 ({len(expanded)}자 > {max_length}자), 기본 방식 사용")
+                return query
+            
+            # 의미없는 반복이나 설명 제거
+            if "예시:" in expanded or "설명:" in expanded or "지침:" in expanded:
+                print(f"    ⚠️ LLM이 설명을 포함함, 기본 방식 사용")
+                return query
+            
+            # 원본과 너무 유사하면 확장 효과 없음
+            if expanded.lower().strip() == query.lower().strip():
+                print(f"    ⚠️ LLM 확장 효과 없음, 기본 방식 사용")
                 return query
             
             return expanded

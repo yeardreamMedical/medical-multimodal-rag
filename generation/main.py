@@ -118,12 +118,32 @@ def display_related_image(console: Console, result: dict, query: str) -> bool:
         return False
     
     # 4. 절대 경로 구성 및 이미지 표시
-    base_dir = Path("/Users/solkim/Desktop/projects/medical/project/data/chestxray14/bbox_images")
-    full_image_path = base_dir / image_path
+    current_dir = Path(__file__).parent  # main.py가 있는 폴더
+    project_root = current_dir.parent if current_dir.name == "generation" else current_dir
+    base_dir = project_root / "data" / "chestxray14" / "bbox_images"
     
-    if not full_image_path.exists():
-        console.print(f"[red]❌ 이미지 파일 없음: {image_path}[/red]")
-        return False
+    # 경로 존재 확인 및 대안 경로 시도
+    if not base_dir.exists():
+        # 다른 가능한 경로들 시도
+        alternative_paths = [
+            project_root / "data" / "bbox_images",  # 간소화된 경로
+            current_dir / "data" / "chestxray14" / "bbox_images",  # generation 폴더 기준
+            current_dir / ".." / "data" / "chestxray14" / "bbox_images",  # 상위 폴더 기준
+        ]
+        
+        for alt_path in alternative_paths:
+            if alt_path.exists():
+                base_dir = alt_path
+                break
+        else:
+            console.print(f"[red]❌ 이미지 디렉토리를 찾을 수 없습니다[/red]")
+            console.print(f"[yellow]찾은 경로들:[/yellow]")
+            console.print(f"  기본: {project_root / 'data' / 'chestxray14' / 'bbox_images'}")
+            for i, alt_path in enumerate(alternative_paths, 1):
+                console.print(f"  대안{i}: {alt_path}")
+            return False
+
+    full_image_path = base_dir / image_path
     
     try:
         # 이미지 로드 및 표시
@@ -157,108 +177,6 @@ def display_related_image(console: Console, result: dict, query: str) -> bool:
     except Exception as e:
         console.print(f"[red]❌ 이미지 표시 실패: {e}[/red]")
         return False
-    
-# def find_image_for_query(console: Console, query: str, result: dict) -> str:
-#     """쿼리와 관련된 실제 이미지 파일 찾기"""
-    
-#     # 0. 검색 엔진에서 이미 찾은 경로가 있으면 우선 사용
-#     search_context = result.get("search_context", {})
-#     primary_image_path = search_context.get("primary_image_path", "")
-    
-#     if primary_image_path:
-#         base_dir = Path("/Users/solkim/Desktop/projects/medical/project/data/chestxray14/bbox_images")
-#         full_path = base_dir / primary_image_path
-        
-#         if full_path.exists():
-#             console.print(f"[green]✅ 검색 엔진 결과 우선 사용: {primary_image_path}[/green]")
-#             return str(full_path)
-#         else:
-#             console.print(f"[yellow]⚠️ 검색 결과 파일 없음: {primary_image_path}[/yellow]")
-
-#     # 1. 이미지 베이스 디렉토리
-#     base_image_dir = Path("/Users/solkim/Desktop/projects/medical/project/data/chestxray14/bbox_images")
-    
-#     if not base_image_dir.exists():
-#         console.print(f"[red]❌ 이미지 디렉토리 없음: {base_image_dir}[/red]")
-#         return None
-    
-#     # 2. 질병명 기반 키워드 매핑
-#     disease_keywords = {
-#         # 한국어 → 영어 키워드
-#         "폐렴": ["pneumonia", "infiltrate", "consolidation"],
-#         "흉수": ["effusion", "pleural"],
-#         "기흉": ["pneumothorax"],
-#         "무기폐": ["atelectasis"],
-#         "침윤": ["infiltrate", "consolidation"],
-#         "경화": ["consolidation", "infiltrate"],
-#         "종괴": ["mass", "nodule"],
-#         "심장비대": ["cardiomegaly"],
-#         "결절": ["nodule"],
-#         # 영어 직접 매핑
-#         "pneumonia": ["pneumonia", "infiltrate"],
-#         "effusion": ["effusion", "pleural"],
-#         "pneumothorax": ["pneumothorax"],
-#         "atelectasis": ["atelectasis"],
-#         "infiltrate": ["infiltrate", "consolidation"],
-#         "consolidation": ["consolidation", "infiltrate"],
-#         "mass": ["mass", "nodule"],
-#         "cardiomegaly": ["cardiomegaly"],
-#         "nodule": ["nodule"]
-#     }
-    
-#     # 3. LLM 추정 주제에서도 키워드 추출
-#     question_data = result.get("generated_question", {})
-#     topic_analysis = question_data.get("topic_analysis", {})
-#     estimated_topic = topic_analysis.get("estimated_topic", "").lower()
-    
-#     # 4. 검색 키워드 수집
-#     search_keywords = []
-#     query_lower = query.lower()
-    
-#     # 쿼리에서 키워드 찾기
-#     for key, keywords in disease_keywords.items():
-#         if key.lower() in query_lower:
-#             search_keywords.extend(keywords)
-#             console.print(f"[blue]🔍 쿼리 매칭: '{key}' → {keywords}[/blue]")
-#             break
-    
-#     # LLM 추정 주제에서 키워드 찾기
-#     if not search_keywords and estimated_topic:
-#         for key, keywords in disease_keywords.items():
-#             if key in estimated_topic:
-#                 search_keywords.extend(keywords)
-#                 console.print(f"[blue]🔍 LLM 주제 매칭: '{key}' → {keywords}[/blue]")
-#                 break
-    
-#     # 기본 키워드
-#     if not search_keywords:
-#         search_keywords = ["pneumonia"]  # 기본값
-#         console.print(f"[yellow]⚠️ 키워드 매칭 실패, 기본값 사용: {search_keywords}[/yellow]")
-    
-#     # 5. 이미지 파일 검색
-#     console.print(f"[blue]🔍 키워드로 이미지 검색: {search_keywords}[/blue]")
-    
-#     for keyword in search_keywords:
-#         # 파일명에 키워드가 포함된 이미지 찾기
-#         matching_files = []
-#         for image_file in base_image_dir.glob("*.png"):
-#             # 파일명 또는 메타데이터에서 키워드 확인
-#             if keyword.lower() in image_file.name.lower():
-#                 matching_files.append(image_file)
-        
-#         if matching_files:
-#             selected_image = matching_files[0]  # 첫 번째 매칭 파일 사용
-#             console.print(f"[green]✅ 매칭 이미지 발견: {selected_image.name} (키워드: {keyword})[/green]")
-#             return str(selected_image)
-    
-#     # 6. 대안: 아무 이미지나 사용 (데모용)
-#     all_images = list(base_image_dir.glob("*.png"))
-#     if all_images:
-#         selected_image = all_images[0]
-#         console.print(f"[yellow]📷 대체 이미지 사용: {selected_image.name}[/yellow]")
-#         return str(selected_image)
-    
-#     return None
 
 def print_dynamic_question(console: Console, result: dict, original_query: str, image_displayed: bool = False):
     """LLM 이미지 선택 포함 문제 출력"""
@@ -422,7 +340,11 @@ def test_image_functionality():
         return
     
     # 이미지 디렉토리 확인
-    base_dir = Path("/Users/solkim/Desktop/projects/medical/project/data/chestxray14/bbox_images")
+    # 수정:
+    current_dir = Path(__file__).parent
+    project_root = current_dir.parent if current_dir.name == "generation" else current_dir
+    base_dir = project_root / "data" / "chestxray14" / "bbox_images"
+
     if base_dir.exists():
         image_count = len(list(base_dir.glob("*.png")))
         console.print(f"[green]✅ 이미지 디렉토리 발견: {image_count}개 파일[/green]")
@@ -538,10 +460,44 @@ if __name__ == "__main__":
             quick_comparison()
         elif command == "--help" or command == "-h":
             console.print("[bold cyan]동적 의학 문제 생성 시스템[/bold cyan]")
-            console.print("python new_run_question_generation.py [쿼리]       # 동적 문제 생성")
-            console.print("python new_run_question_generation.py test         # 문제 쿼리 재테스트") 
-            console.print("python new_run_question_generation.py image-test   # 이미지 기능 테스트")
-            console.print("python new_run_question_generation.py compare      # 시스템 비교")
+            # 수정:
+            console.print("python main.py [쿼리]           # 동적 문제 생성")
+            console.print("python main.py check-path       # 프로젝트 경로 확인") 
+            console.print("python main.py test             # 문제 쿼리 재테스트") 
+            console.print("python main.py image-test       # 이미지 기능 테스트")
+            console.print("python main.py compare          # 시스템 비교")
+        
+        # 3. 새로운 check-path 명령어 추가 (if문에 추가):
+        elif command == "check-path":
+            # 프로젝트 구조 확인
+            current_dir = Path(__file__).parent
+            project_root = current_dir.parent if current_dir.name == "generation" else current_dir
+            
+            console.print(f"[blue]📁 프로젝트 구조 확인[/blue]")
+            console.print(f"현재 스크립트: {Path(__file__)}")
+            console.print(f"현재 폴더: {current_dir}")
+            console.print(f"프로젝트 루트: {project_root}")
+            console.print(f"예상 이미지 경로: {project_root / 'data' / 'chestxray14' / 'bbox_images'}")
+            
+            # 데이터 폴더 존재 확인
+            data_dir = project_root / "data"
+            if data_dir.exists():
+                console.print(f"[green]✅ data 폴더 존재[/green]")
+                
+                chestxray_dir = data_dir / "chestxray14"
+                if chestxray_dir.exists():
+                    console.print(f"[green]✅ chestxray14 폴더 존재[/green]")
+                    
+                    bbox_dir = chestxray_dir / "bbox_images"
+                    if bbox_dir.exists():
+                        image_count = len(list(bbox_dir.glob("*.png")))
+                        console.print(f"[green]✅ bbox_images 폴더 존재 ({image_count}개 이미지)[/green]")
+                    else:
+                        console.print(f"[red]❌ bbox_images 폴더 없음[/red]")
+                else:
+                    console.print(f"[red]❌ chestxray14 폴더 없음[/red]")
+            else:
+                console.print(f"[red]❌ data 폴더 없음[/red]")
         else:
             # 일반 쿼리
             user_query = sys.argv[1]

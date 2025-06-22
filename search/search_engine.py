@@ -791,8 +791,36 @@ class SearchEngine:
             print(f"❌ 이미지 검색 실패: {e}")
             return {"error": f"이미지 검색 중 오류 발생: {str(e)}", "image_path": image_path}
     
+    def search_images_by_disease(self, disease_name: str, top_k: int = 5) -> List[Dict]:
+        """
+        [추가된 메서드]
+        특정 질병명으로 이미지를 검색합니다.
+        ImageSearcher의 기능을 SearchEngine을 통해 노출시킵니다.
+        """
+        print(f"🖼️ 질병명 기반 이미지 검색: '{disease_name}' (상위 {top_k}개)")
+        if not self.image_searcher:
+            print("   ⚠️ 이미지 검색기(ImageSearcher)가 초기화되지 않았습니다.")
+            return []
+            
+        try:
+            # ImageSearcher의 search_by_diseases 메서드 호출
+            # 이 메서드는 질병명 '리스트'를 받으므로 단일 질병명을 리스트로 감싸서 전달
+            results = self.image_searcher.search_by_diseases(
+                predicted_diseases=[disease_name], 
+                top_k=top_k
+            )
+            return results
+        except Exception as e:
+            print(f"❌ 질병명 '{disease_name}' 이미지 검색 실패: {e}")
+            return []
+
     def _search_text_knowledge(self, query: str, top_k: int = 5) -> List[Dict]:
-        """텍스트 DB에서 의학 지식 검색"""
+        """텍스트 임베딩으로 Pinecone 벡터DB 검색"""
+        
+        if not self.text_index:
+            print("❌ 텍스트 인덱스가 초기화되지 않았습니다.")
+            return []
+        
         try:
             print(f"📚 텍스트 지식 검색: '{query[:50]}...'")
             
@@ -834,8 +862,8 @@ class SearchEngine:
             return text_chunks
             
         except Exception as e:
-            print(f"   ❌ 텍스트 검색 실패: {e}")
-            return []
+            print(f"❌ 텍스트 검색 실패: {e}")
+            return {"error": f"텍스트 검색 실패: {e}"}
     
     def get_system_info(self) -> Dict[str, Any]:
         """시스템 정보 반환"""

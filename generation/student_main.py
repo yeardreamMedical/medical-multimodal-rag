@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
 from rich.prompt import Prompt
+from typing import Optional
 
 # 이미지 표시용 라이브러리 추가
 try:
@@ -51,63 +52,57 @@ def main(query: str = "폐렴"):
 
             console.log("✅ 문제 생성 완료")
 
-            status.update("[bold yellow]🖼️ 관련 이미지 검색 및 표시 중...")
-            image_displayed = display_related_image(console, result, query)
-            if image_displayed:
-                console.log("✅ 관련 이미지 표시 완료")
+            # 이미지 표시 단계 삭제 (정답 후로 이동)
+            # image_displayed = display_related_image(console, result, query)
+            selected_type = result.get("image_selection", {}).get("selected_image_type", "None")
+            image_available = selected_type != "None" and len(result.get("selected_images", [])) > 0
 
             # 1. 문제와 보기 먼저 출력
             status.update("[bold green]📋 문제 포맷팅 중...")
-            print_question_and_options(console, result, query, image_displayed)
+            print_question_and_options(console, result, query, image_available)
             console.log("✅ 문제 출력 완료")
             
             # 2. 사용자에게 정답 확인 요청
             console.print("\n\n")
-            Prompt.ask("[bold yellow]정답과 해설을 보려면 Enter 키를 누르세요...[/bold yellow]")
+            Prompt.ask("[bold yellow]정답, 해설, 이미지 분석을 보려면 Enter 키를 누르세요...[/bold yellow]")
 
-            # 3. 정답과 해설 출력
+            # 3. 정답 및 해설 + 이미지 표시
+            if image_available:
+                display_related_image(console, result, query, show_window=True)
             print_answer_and_explanation(console, result)
             console.log("✅ 모든 과정 완료!")
 
         except Exception as e:
             console.print(f"[bold red]❌ 시스템 오류:[/bold red] {str(e)}")
 
-def display_related_image(console: Console, result: dict, query: str) -> bool:
-    """LLM이 선택한 이미지 타입으로 이미지 표시"""
+def display_related_image(console: Console, result: dict, query: str = "", show_window: bool = True) -> bool:
+    """LLM이 선택한 이미지 타입으로 이미지 표시
+    show_window=False이면 표시하지 않고 단순 존재 여부만 반환"""
     
     image_selection = result.get("image_selection", {})
     selected_images = result.get("selected_images", [])
     selected_type = image_selection.get("selected_image_type", "None")
     
-    if selected_type == "None":
+    if selected_type == "None" or not selected_images or not DISPLAY_AVAILABLE:
         return False
-    
-    if not selected_images or not DISPLAY_AVAILABLE:
-        return False
-
-    korean_name = image_selection.get("korean_name", selected_type)
-    reason = image_selection.get("reason", "선택 이유 없음")
-    
-    # 간소화된 정보 출력
-    console.print(Panel(f"[blue]🖼️ LLM 추천 이미지: [bold]{korean_name}[/bold] ({selected_type})\n[dim]이유: {reason}[/dim]", 
-                        title="[bold cyan]참고 이미지[/bold cyan]", border_style="cyan"))
 
     first_image = selected_images[0]
     image_path = first_image.get("image_path", "")
-    
     if not image_path:
         return False
 
     current_dir = Path(__file__).parent
     project_root = current_dir.parent
     base_dir = project_root / "data" / "chestxray14" / "bbox_images"
-
     if not base_dir.exists():
-        console.print(f"[red]❌ 이미지 디렉토리를 찾을 수 없습니다: {base_dir}[/red]")
         return False
 
     full_image_path = base_dir / image_path
     
+    if not show_window:
+        # 창을 띄우지 않고 존재만 확인
+        return full_image_path.exists()
+
     try:
         img = Image.open(full_image_path)
         plt.figure(figsize=(10, 8))
@@ -116,6 +111,7 @@ def display_related_image(console: Console, result: dict, query: str) -> bool:
         question_data = result.get("generated_question", {})
         topic_analysis = question_data.get("topic_analysis", {})
         estimated_topic = topic_analysis.get("estimated_topic", "Unknown")
+        korean_name = image_selection.get("korean_name", selected_type)
         
         plt.title(f"참고 이미지: {korean_name}\nAI 추정 주제: {estimated_topic}", fontsize=14, fontweight='bold')
         plt.axis('off')
@@ -126,7 +122,7 @@ def display_related_image(console: Console, result: dict, query: str) -> bool:
         console.print(f"[red]❌ 이미지 표시 실패: {e}[/red]")
         return False
 
-def print_question_and_options(console: Console, result: dict, original_query: str, image_displayed: bool):
+def print_question_and_options(console: Console, result: dict, original_query: str, image_available: bool):
     """문제, 보기, 관련 메타정보 출력"""
     question_data = result.get("generated_question", {})
     
@@ -137,7 +133,7 @@ def print_question_and_options(console: Console, result: dict, original_query: s
     estimated_topic = topic_analysis.get("estimated_topic", "주제 분석 실패")
     difficulty = topic_analysis.get("difficulty_level", "중급")
 
-    image_status = "[green]표시됨[/green]" if image_displayed else "[dim]없음[/dim]"
+    image_status = "[green]표시됨[/green]" if image_available else "[dim]없음[/dim]"
 
     meta_info = (f"[bold]입력 쿼리:[/bold] {original_query} | "
                  f"[bold]AI 추정 주제:[/bold] {estimated_topic} | "
@@ -160,6 +156,20 @@ def print_answer_and_explanation(console: Console, result: dict):
     question_data = result.get("generated_question", {})
     image_selection = result.get("image_selection", {})
 
+    # 1. LLM 추천 이미지 정보 패널 (정답과 함께 표시)
+    selected_type = image_selection.get("selected_image_type", "None")
+    if selected_type != "None":
+        korean_name = image_selection.get("korean_name", selected_type)
+        reason = image_selection.get("reason", "선택 이유 없음")
+        
+        image_panel = Panel(
+            f"[blue]🖼️ LLM 추천 이미지: [bold]{korean_name}[/bold] ({selected_type})\n\n[dim]이유: {reason}[/dim]", 
+            title="[bold cyan]참고 이미지 분석[/bold cyan]", 
+            border_style="cyan"
+        )
+        console.print(image_panel)
+
+    # 2. 정답 및 해설 패널
     options = question_data.get("options", [])
     answer_idx = question_data.get("answer", -1)
     explanation = question_data.get("explanation", "해설 없음")
@@ -172,22 +182,18 @@ def print_answer_and_explanation(console: Console, result: dict):
         title="[bold green]정답 및 해설[/bold green]",
         border_style="green"
     )
+    console.print(answer_panel)
 
-    # LLM 분석 정보 패널
+    # 3. LLM 추가 분석 정보 패널 (이미지 관련 내용 제외)
     topic_analysis = question_data.get("topic_analysis", {})
     clinical_relevance = topic_analysis.get("clinical_relevance", "medium")
     
-    selected_type = image_selection.get("selected_image_type", "None")
-    selection_reason = image_selection.get("reason", "이유 없음")
-    
-    analysis_content = (f"[bold]임상적 중요도:[/bold] {clinical_relevance}\n"
-                        f"[bold]LLM의 이미지 선택 이유:[/bold] {selection_reason if selected_type != 'None' else '이미지 선택 안함'}")
+    analysis_content = (f"[bold]임상적 중요도:[/bold] {clinical_relevance}")
 
     analysis_panel = Panel(analysis_content, 
                            title="[bold blue]🤖 AI 추가 분석[/bold blue]",
                            border_style="blue")
                            
-    console.print(answer_panel)
     console.print(analysis_panel)
 
 if __name__ == '__main__':

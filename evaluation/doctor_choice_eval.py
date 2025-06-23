@@ -75,6 +75,7 @@ FEW_SHOT_EXAMPLES: List[Dict] = [
 def extract_choice(output: str) -> str:
     """
     LLM의 다양한 출력 텍스트에서 정답 선택지(A-E)를 추출합니다.
+    Gemini 모델의 응답 형식(`**A.` 등)에 더 잘 대응하도록 수정되었습니다.
 
     KorMedMCQA 논문의 Figure 3에서 제시된 순서와 유사하게,
     가장 명확한 패턴부터 덜 명확한 패턴 순으로 정규표현식을 적용하여
@@ -86,28 +87,34 @@ def extract_choice(output: str) -> str:
     Returns:
         str: 추출된 정답 선택지 (A, B, C, D, E). 추출에 실패하면 빈 문자열을 반환.
     """
-    # 패턴 1: "정답: A", "정답 A" 와 같이 '정답' 키워드 바로 뒤에 오는 선택지를 찾습니다.
-    # 가장 우선순위가 높은 패턴입니다.
+    # 패턴 1: Gemini 모델이 자주 사용하는 마크다운 강조 형식 (`**A.`, `**A**`)을 최우선으로 처리
+    # 이런 형식의 답변은 보통 설명의 시작 부분에 위치하므로, 가장 먼저 찾은 결과를 정답으로 간주합니다.
+    matches = re.findall(r'\*{2}\s*([ABCDE])', output, re.IGNORECASE)
+    if matches:
+        return matches[0].upper()
+
+    # 패턴 2: "정답: A", "정답 A" 와 같이 명시적인 키워드가 있는 경우
+    # '정답' 키워드가 명확히 있으므로, 가장 마지막에 나온 것을 최종 답변으로 신뢰할 수 있습니다.
     matches = re.findall(r'정답[:\s]*([ABCDE])', output, re.IGNORECASE)
     if matches:
-        return matches[-1].upper() # 여러 개가 찾아지면 마지막 것을 선택합니다.
+        return matches[-1].upper()
     
-    # 패턴 2: "정답은 A입니다" 와 같이 좀 더 문장 형식에 가까운 패턴을 찾습니다.
+    # 패턴 3: "정답은 A입니다" 와 같은 문장 형식
     matches = re.findall(r'정답은\s*([ABCDE])\s*입니다', output, re.IGNORECASE)
     if matches:
         return matches[-1].upper()
     
-    # 패턴 3: "A. [설명]" 과 같이 답변의 시작 부분에 나오는 선택지를 찾습니다.
-    # \b는 단어 경계를 의미하여, 다른 단어의 일부(예: GRADE)가 아닌 순수 A,B,C,D,E를 찾습니다.
+    # 패턴 4: "A." 로 시작하는 문장 형식.
+    # 설명문에 포함된 'A.', 'B.' 등을 오탐지할 수 있으므로, 가장 먼저 나온 결과만 사용합니다.
     matches = re.findall(r'\b([ABCDE])\.', output, re.IGNORECASE)
     if matches:
-        return matches[-1].upper()
+        return matches[0].upper()
     
-    # 패턴 4: 위의 패턴들이 모두 실패했을 때, 텍스트에 단독으로 존재하는 A,B,C,D,E를 찾습니다.
-    # 가장 포괄적인 패턴으로, 정확도가 낮을 수 있어 마지막에 사용합니다.
+    # 패턴 5: A, B, C, D, E 알파벳 단독. 가장 위험한 패턴이므로 최후에 사용하며,
+    # 역시 오탐지를 피하기 위해 가장 먼저 나온 결과만 사용합니다.
     matches = re.findall(r'\b([ABCDE])\b', output, re.IGNORECASE)
     if matches:
-        return matches[-1].upper()
+        return matches[0].upper()
     
     # 모든 패턴에서 정답을 찾지 못한 경우, 빈 문자열을 반환합니다.
     return ''
@@ -130,9 +137,8 @@ def build_prompt(question: str, choices: Dict[str, str]) -> str:
 def make_5shot_prompt(target_q: str, target_choices: Dict[str, str]) -> str:
     """
     5개의 Few-shot 예제와 실제 문제를 결합하여 최종 프롬프트를 생성합니다.
-
-    이 함수는 LLM에게 문제 해결 방법을 '보여주기 위해' 예제들을 먼저 제시하고,
-    그 다음에 진짜 풀어야 할 문제를 제시하는 역할을 합니다.
+    모델이 오해하지 않도록 예제 부분과 실제 문제 부분을 명확히 분리하고,
+    하나의 정답만 출력하도록 지시문을 강화합니다.
 
     Args:
         target_q (str): 모델이 풀어야 할 실제 문제의 텍스트.
@@ -141,20 +147,22 @@ def make_5shot_prompt(target_q: str, target_choices: Dict[str, str]) -> str:
     Returns:
         str: Gemini API에 전달될 완전한 프롬프트 문자열.
     """
-    chunks = []
+    chunks = ["다음은 문제와 정답의 예시입니다.", "---"]
     
     # FEW_SHOT_EXAMPLES에 정의된 예제들을 순회하며 프롬프트에 추가합니다.
-    for ex in FEW_SHOT_EXAMPLES:
-        # 질문과 보기를 프롬프트 형식으로 변환
+    for i, ex in enumerate(FEW_SHOT_EXAMPLES, 1):
+        chunks.append(f"<예제 {i}>")
         chunks.append(build_prompt(ex["question"], ex["choices"]))
-        # 정답을 "정답: [정답]" 형식으로 추가
         chunks.append(f"정답: {ex['answer']}")
-        # 예제 사이에 명확한 구분을 위해 빈 줄을 추가
-        chunks.append("")  
+        chunks.append("")
     
+    # 예제가 끝났음을 명확히 알리고, 실제 과제를 제시합니다.
+    chunks.append("---")
+    chunks.append("이제, 아래 문제에 대한 정답을 보기에서 골라 A, B, C, D, E 중 하나의 알파벳으로만 답해주십시오.")
+    chunks.append("다른 어떤 설명도 추가하지 마십시오.")
+    chunks.append("\n<풀어야 할 문제>")
     # 모든 예제가 추가된 후, 모델이 풀어야 할 실제 문제를 추가합니다.
     chunks.append(build_prompt(target_q, target_choices))
-    # 모델이 이어서 답변을 생성하도록 "정답:" 텍스트로 프롬프트를 마무리합니다.
     chunks.append("정답:")
     
     # 모든 조각(chunk)들을 개행 문자로 합쳐 하나의 완성된 프롬프트로 만듭니다.

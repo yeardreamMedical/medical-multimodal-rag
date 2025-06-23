@@ -91,9 +91,15 @@ def search_similar_images_from_yolo_detections(image_path: str, yolo_detections:
                     r_cy = (roi_bbox[1] + roi_bbox[3]) / 2
                     dist = np.sqrt((q_cx - r_cx)**2 + (q_cy - r_cy)**2)
                     score = -dist
-                    result['roi_bbox'] = roi_bbox  # Store selected bbox
+                    result['roi_bbox'] = roi_bbox
+                    result['euclidean_score'] = dist
                     all_candidates.append((score, result))
-                except:
+
+                    image_name = result.get('image_file') or os.path.basename(result.get('image_path', ''))
+                    print(f"      📎 후보 이미지: {image_name}, 거리: {dist:.2f}")
+
+                except Exception as e:
+                    print(f"      ⚠️ 거리 계산 실패: {e}")
                     continue
 
         sorted_results = sorted(all_candidates, key=lambda x: x[0], reverse=True)
@@ -104,6 +110,8 @@ def search_similar_images_from_yolo_detections(image_path: str, yolo_detections:
             if item['image_id'] not in seen:
                 final.append(item)
                 seen.add(item['image_id'])
+                image_name = item.get('image_file') or os.path.basename(item.get('image_path', ''))
+                print(f"      ✅ 선택됨: {image_name}, 거리: {item['euclidean_score']:.2f}")
             if len(final) >= top_k:
                 break
 
@@ -130,12 +138,16 @@ def show_matched_images_by_label(query_image_path: str, query_detections: List[D
             full_path = os.path.join(LOCAL_IMAGE_DIR, image_file)
             label_text = ", ".join(match.get("labels", [])) or match.get("primary_label", "Unknown")
             roi_bbox = match.get("roi_bbox")
+            dist_score = match.get("euclidean_score", None)
             if os.path.exists(full_path):
                 result_img = Image.open(full_path).convert("RGB")
                 if roi_bbox:
                     result_img = draw_bbox(result_img.copy(), [{"label": label, "bbox": roi_bbox}], label_map=True)
                 axes[i + 1].imshow(result_img)
-                axes[i + 1].set_title(f"{label_text}")
+                title = f"{image_file}\n{label_text}"
+                if dist_score is not None:
+                    title += f"\n거리: {dist_score:.1f}"
+                axes[i + 1].set_title(title)
                 axes[i + 1].axis('off')
             else:
                 print(f"❌ 이미지 없음: {full_path}")

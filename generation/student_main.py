@@ -5,11 +5,12 @@
 from pathlib import Path
 import sys
 import os
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.markdown import Markdown
 # rich.prompt는 사용자로부터 입력을 받을 때 사용하는 기능입니다.
 from rich.prompt import Prompt
+from rich.text import Text
 
 # --- 이미지 표시 관련 라이브러리 (main.py와 동일) ---
 # 이미지 표시 기능은 선택 사항이므로, 관련 라이브러리가 없어도 프로그램이 동작하도록 try-except 구문을 사용합니다.
@@ -160,19 +161,31 @@ def print_question_and_options(console: Console, result: dict, image_displayed: 
     question_text = question_data.get("question", "문제 생성 실패")
     options = question_data.get("options", [])
     
-    # 2. 문제와 보기를 담은 패널 생성
-    question_content = f"### 문제\n\n{question_text}"
-    
-    # 이미지가 별도 창으로 표시된 경우, 참고하라는 안내 메시지를 추가합니다.
-    if image_displayed:
-        question_content += f"\n\n[bold green] (화면에 표시된 참고 이미지를 확인하여 문제를 풀어보세요)[/bold green]"
+    # 2. 렌더링할 컨텐츠들을 리스트로 구성합니다.
+    #    마크다운과 rich 전용 스타일 태그를 분리하여 처리하는 것이 핵심입니다.
+    render_items = []
 
-    question_content += "\n\n--- \n" # 마크다운의 가로줄 문법
+    # 2-1. 문제 본문은 마크다운으로 처리합니다.
+    render_items.append(Markdown(f"### 문제\n\n{question_text}"))
+
+    # 2-2. 이미지 안내 문구는 rich의 Text 객체를 사용하여 스타일을 직접 적용합니다.
+    #      이렇게 하면 [bold green] 태그가 마크다운에 의해 무시되지 않고 정상적으로 렌더링됩니다.
+    if image_displayed:
+        render_items.append(Text("\n\n (화면에 표시된 참고 이미지를 확인하여 문제를 풀어보세요)", style="bold green"))
+
+    # 2-3. 보기 목록도 마크다운으로 처리합니다.
+    options_str = "\n\n---\n"
     for i, option in enumerate(options):
-        question_content += f"{i+1}. {option}\n"
-        
-    console.print(Panel(Markdown(question_content), 
-                        title="[bold yellow]Q. 다음 문제를 풀어보세요[/bold yellow]", 
+        options_str += f"{i+1}. {option}\n"
+    render_items.append(Markdown(options_str))
+    
+    # 3. rich의 Group을 사용하여 위에서 만든 렌더링 객체들을 하나로 묶습니다.
+    #    Panel은 하나의 렌더링 객체만 받을 수 있으므로, Group으로 합쳐서 전달합니다.
+    panel_content = Group(*render_items)
+
+    # 4. 최종적으로 그룹화된 내용을 담은 패널을 출력합니다.
+    console.print(Panel(panel_content,
+                        title="[bold yellow]Q. 다음 문제를 풀어보세요[/bold yellow]",
                         border_style="yellow"))
 
 def print_answer_and_explanation(console: Console, result: dict, original_query: str):

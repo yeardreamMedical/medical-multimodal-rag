@@ -1,6 +1,6 @@
 # LLM & Vector DB
 google-generativeai
-pinecone-client
+pinecone
 openai
 
 # ML & Image/Text Processing

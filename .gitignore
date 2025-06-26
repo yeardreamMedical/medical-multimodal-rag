@@ -20,6 +20,15 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
+backend/__pycache__/
+backend/*.py[cod]
+backend/.env
+
+# Node
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env
 
 # Virtual Environment
 venv/

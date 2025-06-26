@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medicube - AI 의료 문제 생성</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/styles/main.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Main Page -->
+        <div id="main-page" class="page active">
+            <div class="container">
+                <header class="header">
+                    <div class="logo">
+                        <div class="logo-icon">🩺</div>
+                        <h1>Medicube</h1>
+                    </div>
+                    <p class="subtitle">AI 기반 동적 의료 문제 생성 시스템</p>
+                </header>
+
+                <main class="main-content">
+                    <div class="input-section">
+                        <div class="input-container">
+                            <label for="medical-topic" class="input-label">
+                                학습하고 싶은 의료 주제를 입력하세요
+                            </label>
+                            <div class="input-wrapper">
+                                <input 
+                                    type="text" 
+                                    id="medical-topic" 
+                                    class="topic-input"
+                                    placeholder="예: 폐렴, 기흉, 심근경색..."
+                                    autocomplete="off"
+                                >
+                                <button id="generate-btn" class="generate-btn">
+                                    <span class="btn-text">문제 생성</span>
+                                    <span class="btn-icon">✨</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="examples-section">
+                            <h3>추천 키워드</h3>
+                            <div class="example-tags">
+                                <button class="example-tag" data-topic="폐렴">폐렴</button>
+                                <button class="example-tag" data-topic="기흉">기흉</button>
+                                <button class="example-tag" data-topic="심근경색">심근경색</button>
+                                <button class="example-tag" data-topic="당뇨병">당뇨병</button>
+                                <button class="example-tag" data-topic="고혈압">고혈압</button>
+                                <button class="example-tag" data-topic="천식">천식</button>
+                                <button class="example-tag" data-topic="뇌졸중">뇌졸중</button>
+                                <button class="example-tag" data-topic="심부전">심부전</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="features-section">
+                        <div class="feature-grid">
+                            <div class="feature-card">
+                                <div class="feature-icon">🤖</div>
+                                <h3>AI 기반 생성</h3>
+                                <p>최신 AI 기술로 실제 시험과 유사한 고품질 문제를 생성합니다</p>
+                            </div>
+                            <div class="feature-card">
+                                <div class="feature-icon">🖼️</div>
+                                <h3>이미지 연동</h3>
+                                <p>관련 의료 이미지와 함께 제공되는 실전형 문제</p>
+                            </div>
+                            <div class="feature-card">
+                                <div class="feature-icon">📚</div>
+                                <h3>상세한 해설</h3>
+                                <p>정답뿐만 아니라 상세한 해설과 학습 포인트 제공</p>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- Quiz Page -->
+        <div id="quiz-page" class="page">
+            <div class="container">
+                <header class="quiz-header">
+                    <button id="back-btn" class="back-btn">
+                        <span>←</span> 메인으로
+                    </button>
+                    <div class="quiz-title">
+                        <h2 id="quiz-topic">문제 풀이</h2>
+                    </div>
+                </header>
+
+                <main class="quiz-content">
+                    <!-- Loading State -->
+                    <div id="loading-state" class="loading-container">
+                        <div class="loading-spinner"></div>
+                        <h3>AI가 문제를 만들고 있습니다...</h3>
+                        <p>벡터DB 검색 및 문제 생성 중</p>
+                        <div class="loading-steps">
+                            <div class="step active">
+                                <span class="step-number">1</span>
+                                <span class="step-text">관련 의료 지식 검색</span>
+                            </div>
+                            <div class="step">
+                                <span class="step-number">2</span>
+                                <span class="step-text">AI 문제 생성</span>
+                            </div>
+                            <div class="step">
+                                <span class="step-number">3</span>
+                                <span class="step-text">이미지 매칭</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Question Display -->
+                    <div id="question-display" class="question-container" style="display: none;">
+                        <div class="question-section">
+                            <div id="related-image" class="image-container" style="display: none;">
+                                <img id="question-image" src="" alt="관련 의료 이미지">
+                                <div class="image-caption">
+                                    <span id="image-type"></span>
+                                </div>
+                                <div class="image-actions">
+                                    <button id="similar-images-btn" class="similar-images-btn">
+                                        <span class="btn-icon">🔍</span>
+                                        <span class="btn-text">비슷한 이미지 보기</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="question-content">
+                                <div class="question-header">
+                                    <span class="question-badge">문제</span>
+                                    <div class="question-meta">
+                                        <span id="difficulty-badge" class="meta-badge"></span>
+                                        <span id="topic-badge" class="meta-badge"></span>
+                                    </div>
+                                </div>
+                                <div id="question-text" class="question-text"></div>
+                            </div>
+                        </div>
+
+                        <div class="options-section">
+                            <h4>다음 중 가장 적절한 것은?</h4>
+                            <div id="options-container" class="options-container">
+                                <!-- Options will be dynamically generated -->
+                            </div>
+                        </div>
+
+                        <div class="action-section">
+                            <button id="show-answer-btn" class="show-answer-btn" disabled>
+                                정답 및 해설 보기
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Similar Images Modal -->
+                    <div id="similar-images-modal" class="modal" style="display: none;">
+                        <div class="modal-overlay"></div>
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h3>비슷한 이미지</h3>
+                                <button id="close-modal-btn" class="close-modal-btn">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="similar-images-grid" class="similar-images-grid">
+                                    <!-- Similar images will be loaded here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Answer Display -->
+                    <div id="answer-display" class="answer-container" style="display: none;">
+                        <div class="answer-section">
+                            <div class="correct-answer">
+                                <h4>정답</h4>
+                                <div id="correct-answer-text" class="answer-text"></div>
+                            </div>
+                            
+                            <div class="explanation">
+                                <h4>해설</h4>
+                                <div id="explanation-text" class="explanation-content"></div>
+                            </div>
+
+                            <div class="ai-analysis">
+                                <h4>AI 분석 정보</h4>
+                                <div class="analysis-grid">
+                                    <div class="analysis-item">
+                                        <span class="label">주제:</span>
+                                        <span id="analysis-topic"></span>
+                                    </div>
+                                    <div class="analysis-item">
+                                        <span class="label">난이도:</span>
+                                        <span id="analysis-difficulty"></span>
+                                    </div>
+                                    <div class="analysis-item">
+                                        <span class="label">임상적 중요도:</span>
+                                        <span id="analysis-relevance"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="next-action">
+                            <button id="new-question-btn" class="new-question-btn">
+                                다른 문제 풀기
+                            </button>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <!-- Error Display -->
+        <div id="error-display" class="error-container" style="display: none;">
+            <div class="error-content">
+                <div class="error-icon">⚠️</div>
+                <h3>문제 생성에 실패했습니다</h3>
+                <p id="error-message"></p>
+                <div class="error-suggestions">
+                    <h4>해결 방법:</h4>
+                    <ul>
+                        <li>다른 의료 용어로 시도해보세요</li>
+                        <li>더 구체적인 키워드를 사용해보세요</li>
+                        <li>일반적인 질병명을 사용해보세요</li>
+                    </ul>
+                </div>
+                <button id="retry-btn" class="retry-btn">다시 시도</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/js/main.js"></script>
+</body>
+</html>

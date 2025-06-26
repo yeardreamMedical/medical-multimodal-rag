@@ -35,7 +35,7 @@ load_dotenv()
 # Gemini API 키를 환경 변수에서 가져와 설정합니다.
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 # 사용할 Gemini 모델의 이름을 지정합니다.
-MODEL_NAME = "gemini-1.5-pro"
+# MODEL_NAME = "gemini-1.5-pro" # -> 이제 커맨드라인 인자로 받습니다.
 
 # Few-shot 프롬프팅에 사용될 5개의 예제입니다. (KorMedMCQA 논문에서 사용된 예제와 동일)
 # 모델에게 문제 형식(질문, 보기, 정답)을 명확히 알려주어 성능을 높이는 역할을 합니다.
@@ -168,19 +168,20 @@ def make_5shot_prompt(target_q: str, target_choices: Dict[str, str]) -> str:
     # 모든 조각(chunk)들을 개행 문자로 합쳐 하나의 완성된 프롬프트로 만듭니다.
     return "\n".join(chunks)
 
-def gemini_completion(prompt: str) -> str:
+def gemini_completion(prompt: str, model_name: str) -> str:
     """
     주어진 프롬프트를 Gemini API로 보내고, 모델의 응답을 반환합니다.
 
     Args:
         prompt (str): `make_5shot_prompt`에서 생성된 최종 프롬프트.
+        model_name (str): 사용할 Gemini 모델 이름.
 
     Returns:
         str: 모델이 생성한 텍스트. API 호출 중 오류가 발생하면 빈 문자열을 반환.
     """
     try:
         # 지정된 모델을 사용하여 API 요청 객체를 생성합니다.
-        model = genai.GenerativeModel(MODEL_NAME)
+        model = genai.GenerativeModel(model_name)
         # 프롬프트와 생성 옵션을 전달하여 콘텐츠 생성을 요청합니다.
         response = model.generate_content(
             prompt,
@@ -221,7 +222,7 @@ def debug_single_question():
     print("\n=== RESPONSE ===")
     
     # Gemini API를 호출하여 응답을 받습니다.
-    response = gemini_completion(prompt)
+    response = gemini_completion(prompt, model_name="gemini-1.5-pro")
     print(response)
     
     # 응답에서 정답을 추출합니다.
@@ -276,13 +277,14 @@ def validate_data(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
-def evaluate(top_n: int = None, debug: bool = False):
+def evaluate(top_n: int = None, debug: bool = False, model_name: str = "gemini-1.5-pro"):
     """
     메인 평가 로직을 실행합니다.
 
     Args:
         top_n (int, optional): 평가할 문제의 최대 개수. None이면 전체 데이터셋을 평가합니다.
         debug (bool, optional): True이면 디버그 모드(`debug_single_question`)를 실행합니다.
+        model_name (str): 평가에 사용할 모델 이름.
     """
     
     # 디버그 모드가 활성화된 경우, 단일 질문 테스트 함수만 실행하고 종료합니다.
@@ -331,7 +333,7 @@ def evaluate(top_n: int = None, debug: bool = False):
 
         # 5-shot 프롬프트를 생성하고 API를 호출하여 모델의 답변을 받습니다.
         full_prompt = make_5shot_prompt(q_text, choices_dict)
-        gen_out = gemini_completion(full_prompt)
+        gen_out = gemini_completion(full_prompt, model_name=model_name)
         # 모델의 답변에서 최종 선택지를 추출합니다.
         pred = extract_choice(gen_out)
 
@@ -367,7 +369,11 @@ def evaluate(top_n: int = None, debug: bool = False):
     if wrong_log:
         out_dir = pathlib.Path("evaluation_results")
         out_dir.mkdir(exist_ok=True) # evaluation_results 디렉토리가 없으면 생성
-        file_path = out_dir / "doctor_wrong_answers_fixed.jsonl"
+        
+        # 모델 이름에 따라 파일명 동적 생성
+        model_short_name = model_name.split('/')[-1] # "gemini-1.5-pro"
+        file_path = out_dir / f"doctor_wrong_answers_{model_short_name}.jsonl"
+        
         with open(file_path, "w", encoding="utf-8") as f:
             for row in wrong_log:
                 # json.dumps를 사용하여 딕셔너리를 JSON 문자열로 변환하여 파일에 씁니다.
@@ -377,10 +383,11 @@ def evaluate(top_n: int = None, debug: bool = False):
 
 if __name__ == "__main__":
     # 커맨드라인 인자를 파싱하기 위한 설정
-    parser = argparse.ArgumentParser(description="Gemini 1.5 Pro 모델로 KorMedMCQA-doctor 데이터셋을 평가합니다.")
+    parser = argparse.ArgumentParser(description="Gemini 모델로 KorMedMCQA-doctor 데이터셋을 평가합니다.")
+    parser.add_argument("--model", type=str, default="gemini-1.5-pro", help="평가에 사용할 모델 이름 (예: gemini-1.5-pro, gemini-1.5-flash)")
     parser.add_argument("--top_n", type=int, help="평가할 문제의 수를 제한합니다 (예: --top_n 10).")
     parser.add_argument("--debug", action="store_true", help="단일 문제로 디버깅 모드를 실행합니다.")
     args = parser.parse_args()
     
     # 파싱된 인자들을 evaluate 함수에 전달하여 평가를 시작합니다.
-    evaluate(top_n=args.top_n, debug=args.debug)
+    evaluate(top_n=args.top_n, debug=args.debug, model_name=args.model)

@@ -230,7 +230,7 @@ class QueryProcessor:
         """LLM(Gemini)을 사용하여 동적으로 쿼리를 확장합니다. 이 과정은 '프롬프트 엔지니어링'이 중요합니다."""
         try:
             # LLM에게 역할을 부여하고, 명확한 지침과 예시를 제공하여 원하는 결과물을 얻도록 유도하는 프롬프트입니다.
-            prompt = f"""당신은 의료 정보 검색 전문가입니다. 다음 쿼리를 의료 문헌 검색에 최적화된 형태로 확장하세요.
+            prompt = f"""당신은 한국 의사 국가고시 출제 교수입니다. 다음 쿼리를 의사 국가 고시 문제 검색에 최적화된 형태로 확장하세요.
 
     원본 쿼리: "{query}"
 
@@ -259,8 +259,14 @@ class QueryProcessor:
                 max_length = len(query) * 2
             
             if len(expanded) > max_length:
-                print(f"    ⚠️ LLM 확장 결과가 너무 김 ({len(expanded)}자 > {max_length}자), 기본 방식 사용")
-                return query
+                print(f"    ⚠️ LLM 확장 결과가 너무 김 ({len(expanded)}자 > {max_length}자), 일부만 사용하도록 자릅니다.")
+                # max_length까지 자르고, 마지막 단어가 잘렸을 경우를 대비해 마지막 공백까지 잘라냄
+                truncated = expanded[:max_length]
+                if ' ' in truncated:
+                    expanded = truncated.rsplit(' ', 1)[0]
+                else: # 공백이 없으면 그냥 자름
+                    expanded = truncated
+                print(f"    ✂️  조정된 쿼리: '{expanded}' ({len(expanded)}자)")
             
             # 의미없는 반복이나 설명 제거
             if "예시:" in expanded or "설명:" in expanded or "지침:" in expanded:

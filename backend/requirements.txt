@@ -3,6 +3,11 @@ google-generativeai
 pinecone
 openai
 
+# FastAPI Web Server
+fastapi
+uvicorn
+python-multipart
+
 # ML & Image/Text Processing
 torch
 # Microsoft BioViL + Vision-Language Toolbox (import path: health_multimodal)
@@ -20,4 +25,4 @@ seaborn
 # UI & Utilities
 rich
 python-dotenv
-Pillow 
+Pillow

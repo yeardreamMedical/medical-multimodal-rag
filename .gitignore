@@ -114,3 +114,12 @@ dmypy.json
 wandb/
 mlruns/
 .weights/
+
+# environment variables
+/.env
+
+# legacy files
+legacy_backend/*
+frontend_backup/*
+legacy_backend
+frontend_backup
